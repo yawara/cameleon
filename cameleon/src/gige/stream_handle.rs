@@ -11,7 +11,7 @@ use std::{
 };
 
 use cameleon_device::gige::protocol::stream::{
-    ImageLeader, ImageTrailer, PacketHeader, PacketType, PayloadType, PayloadTypeKind,
+    ImageLeader, ImageTrailer, PacketHeader, PacketType, PayloadTypeKind,
 };
 use futures_channel::oneshot;
 use tracing::{error, warn};
@@ -183,14 +183,13 @@ impl StreamingLoop {
             let header = unwrap_or_continue!(PacketHeader::parse(&mut cursor));
             match header.packet_type {
                 PacketType::Leader => {
-                    let payload_type =
-                        unwrap_or_continue!(PayloadType::parse_generic_leader(&mut cursor));
+                    let leader = unwrap_or_continue!(ImageLeader::parse(&mut cursor));
+                    let payload_type = leader.payload_type();
                     ensure_or_continue!(
                         payload_type.kind() == PayloadTypeKind::Image,
                         "Payload type kind: {:?} not suported",
                         payload_type.kind()
                     );
-                    let leader = unwrap_or_continue!(ImageLeader::parse(&mut cursor));
                     if builder.is_some() {
                         warn!("A new leader packet has arrived while no trailer packet arrived");
                     }
@@ -205,18 +204,16 @@ impl StreamingLoop {
                         }
                         Ok(None) => {}
                     }
-                    let payload_type =
-                        unwrap_or_continue!(PayloadType::parse_generic_leader(&mut cursor));
                     let Some(builder) = builder.take() else {
                         warn!("Trailer packet received while no leader packet arrived");
                         continue;
                     };
+                    let trailer = unwrap_or_continue!(ImageTrailer::parse(&mut cursor));
                     ensure_or_continue!(
-                        payload_type.kind() == PayloadTypeKind::Image,
+                        trailer.payload_type().kind() == PayloadTypeKind::Image,
                         "Payload type kind: {:?} not suported",
-                        payload_type.kind()
+                        trailer.payload_type().kind()
                     );
-                    let _trailer = unwrap_or_continue!(ImageTrailer::parse(&mut cursor));
                     let payload = handle_packet_mismatch!(builder.build(header));
                     unwrap_or_continue!(async_std::task::block_on(self.sender.send(Ok(payload))));
                 }

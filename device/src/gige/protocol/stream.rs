@@ -230,6 +230,7 @@ impl ImageLeader {
 }
 
 pub struct ImageTrailer {
+    payload_type: PayloadType,
     actual_height: u32,
 }
 
@@ -238,8 +239,17 @@ impl ImageTrailer {
         self.actual_height
     }
 
+    pub fn payload_type(&self) -> PayloadType {
+        self.payload_type
+    }
+
     pub fn parse(cursor: &mut io::Cursor<&[u8]>) -> Result<Self> {
+        let _reserved: u16 = cursor.read_bytes_be()?;
+        let payload_type = PayloadType::parse(cursor)?;
         let actual_height = cursor.read_bytes_be()?;
-        Ok(Self { actual_height })
+        Ok(Self {
+            payload_type,
+            actual_height,
+        })
     }
 }
